@@ -33,9 +33,12 @@ export function buildEmbed(
   const title = rare ? `${id.common_name.toUpperCase()}!!` : id.common_name;
 
   // GBIF's IUCN category is the source of truth when we have it; Max adds the color.
-  const conservation = extra.gbif?.iucnCategory
-    ? `IUCN: ${extra.gbif.iucnCategory}. ${id.conservation_status}`
-    : id.conservation_status;
+  // Skip the prefix when Max already said the same category, so it doesn't read twice.
+  const iucn = extra.gbif?.iucnCategory;
+  const conservation =
+    iucn && !id.conservation_status.toLowerCase().includes(iucn)
+      ? `IUCN: ${iucn}. ${id.conservation_status}`
+      : id.conservation_status;
 
   const sightings = extra.sightings
     ? extra.sightings.count > 0

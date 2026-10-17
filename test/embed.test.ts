@@ -64,6 +64,17 @@ test("GBIF's IUCN category leads the conservation field", () => {
   assert.equal(field?.value, "IUCN: least concern. least concern, doing great");
 });
 
+test("GBIF's category isn't repeated when Max already said it", () => {
+  const embed = buildEmbed(
+    { ...finch, conservation_status: "Least Concern (IUCN), widespread." },
+    { gbif: { scientificName: "Haemorhous mexicanus", isBird: true, iucnCategory: "least concern", url: "https://www.gbif.org/species/1" } },
+    undefined,
+    never,
+  );
+  const field = embed.fields?.find((f) => f.name === "Conservation status");
+  assert.equal(field?.value, "Least Concern (IUCN), widespread.");
+});
+
 test("eBird sightings and xeno-canto recordings show up when found", () => {
   const embed = buildEmbed(
     finch,
