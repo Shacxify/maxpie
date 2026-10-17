@@ -55,13 +55,13 @@ test("empty fields are left out instead of rendered blank", () => {
 
 test("GBIF's IUCN category leads the conservation field", () => {
   const embed = buildEmbed(
-    finch,
+    { ...finch, conservation_status: "doing great, everywhere" },
     { gbif: { scientificName: "Haemorhous mexicanus", isBird: true, iucnCategory: "least concern", url: "https://www.gbif.org/species/1" } },
     undefined,
     never,
   );
   const field = embed.fields?.find((f) => f.name === "Conservation status");
-  assert.equal(field?.value, "IUCN: least concern. least concern, doing great");
+  assert.equal(field?.value, "IUCN: least concern. doing great, everywhere");
 });
 
 test("GBIF's category isn't repeated when Max already said it", () => {
