@@ -50,6 +50,16 @@ Because he has to stay connected, Max needs somewhere that runs all the time (no
    ```
    He logs `max is online as Maxpie#1234` when he's connected.
 
+### Hosting on Heroku
+
+The `Procfile` runs Max as a worker (no website, just the bot).
+
+1. Create an app in the [Heroku dashboard](https://dashboard.heroku.com/new-app).
+2. **Deploy** tab: connect GitHub, pick this repo, deploy the `main` branch, and turn on automatic deploys.
+3. **Settings** tab > Config Vars: add `DISCORD_BOT_TOKEN`, `GEMINI_API_KEY`, and `MAX_PG_MODE`.
+4. **Resources** tab: pick the Eco or Basic plan, make sure `web` is off (there isn't one), and switch `worker npm start` on.
+5. **More > View logs** should show `max is online as ...`.
+
 ### Under-18 members
 
 Set `MAX_PG_MODE=true` and Max's weed jokes become snack jokes ("snack break. back in 30s."). Do this if anyone in the server is under 18, so Discord doesn't flag the bot.
