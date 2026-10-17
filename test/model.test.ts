@@ -14,19 +14,9 @@ const finch = {
   is_animal: true,
   common_name: "House Finch",
   scientific_name: "Haemorhous mexicanus",
-  is_bird: true,
-  ebird_species_code: "houfin",
-  confidence: "high",
-  confidence_line: "i'd bet my binoculars on it",
-  likely_region: "west coast-ish",
-  region_reasoning: "backyard feeder.",
-  field_notes: "the red's from what he eats.",
-  conservation_status: "least concern",
-  fun_fact: "hollywood finches.",
-  id_tip: "purple finch is more raspberry.",
-  migration_notes: "mostly resident.",
   excitement: "common",
   max_take: "mm. house finch.",
+  facts: ["the red comes from what he eats.", "hollywood finches."],
 };
 
 // Stand in for the Gemini REST API and remember what was sent.
@@ -46,7 +36,7 @@ test("sends the photo, persona, and JSON schema, then parses the ID", async () =
     candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(finch) }] }, finishReason: "STOP" }],
   });
 
-  const result = await identifyAnimal(image, "Alviso Marsh");
+  const result = await identifyAnimal(image, "what the heck is this? saw it at Alviso Marsh");
   assert.deepEqual(result, { kind: "ok", id: finch });
 
   assert.equal(sent.length, 1);
@@ -72,7 +62,7 @@ test("a blocked prompt becomes a refusal", async () => {
 
 test("JSON that doesn't match the schema fails cleanly", async () => {
   fakeGemini({
-    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ ...finch, confidence: "vibes" }) }] }, finishReason: "STOP" }],
+    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ ...finch, excitement: "vibes" }) }] }, finishReason: "STOP" }],
   });
   const result = await identifyAnimal(image, undefined);
   assert.equal(result.kind, "failed");

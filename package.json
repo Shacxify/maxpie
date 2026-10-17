@@ -1,27 +1,25 @@
 {
   "name": "maxpie",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Maxpie: a Discord wildlife identifier bot voiced by field ornithologist Max Liske",
+  "description": "Maxpie: a Discord bot that IDs animals from photos when you @mention it, voiced by field ornithologist Max Liske",
   "type": "module",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "register": "node --env-file=.env --import tsx scripts/register-commands.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.ts"
+    "test": "tsx --test test/*.test.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/index.ts"
   },
   "dependencies": {
     "@google/genai": "^2.30.0",
-    "@vercel/functions": "^3.10.1",
-    "discord-api-types": "^0.38.56",
-    "discord-interactions": "^4.4.0",
+    "discord.js": "^14.27.0",
+    "tsx": "^4.23.15",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
-    "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
 }

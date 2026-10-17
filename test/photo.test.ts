@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { APIAttachment } from "discord-api-types/v10";
-import { resizedUrl, supportedMediaType } from "../src/discord.js";
+import { resizedUrl, supportedMediaType, type PhotoSource } from "../src/photo.js";
 
-const photo = (width: number, height: number): APIAttachment => ({
-  id: "1",
-  filename: "bird.jpg",
-  size: 4_000_000,
+const photo = (width: number, height: number): PhotoSource => ({
   url: "https://cdn.discordapp.com/attachments/1/2/bird.jpg?ex=abc",
-  proxy_url: "https://media.discordapp.net/attachments/1/2/bird.jpg?ex=abc",
-  content_type: "image/jpeg",
+  proxyUrl: "https://media.discordapp.net/attachments/1/2/bird.jpg?ex=abc",
+  contentType: "image/jpeg",
   width,
   height,
 });
@@ -30,5 +26,5 @@ test("only image types the model can read are accepted", () => {
   assert.equal(supportedMediaType("image/jpeg"), "image/jpeg");
   assert.equal(supportedMediaType("image/PNG; charset=binary"), "image/png");
   assert.equal(supportedMediaType("image/heic"), undefined);
-  assert.equal(supportedMediaType(undefined), undefined);
+  assert.equal(supportedMediaType(null), undefined);
 });
