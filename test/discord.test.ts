@@ -26,7 +26,7 @@ test("big photos are resized through the media proxy, keeping the aspect ratio",
   assert.equal(url.searchParams.get("ex"), "abc");
 });
 
-test("only image types Claude can read are accepted", () => {
+test("only image types the model can read are accepted", () => {
   assert.equal(supportedMediaType("image/jpeg"), "image/jpeg");
   assert.equal(supportedMediaType("image/PNG; charset=binary"), "image/png");
   assert.equal(supportedMediaType("image/heic"), undefined);

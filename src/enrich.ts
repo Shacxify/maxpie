@@ -1,7 +1,7 @@
 // Free data sources that keep Max's facts grounded. Every lookup is best-effort:
 // a slow or broken API drops that field from the embed instead of failing the reply.
 
-import type { Identification } from "./claude.js";
+import type { Identification } from "./model.js";
 
 const USER_AGENT = "Maxpie/0.1 (Discord wildlife bot; https://github.com/shacxify/maxpie)";
 const TIMEOUT_MS = 8000;
@@ -81,7 +81,7 @@ async function lookupSightings(id: Identification, place: string): Promise<Enric
   if (!key || !code) return undefined;
   const headers = { "X-eBirdApiToken": key };
 
-  // Claude suggests the species code; eBird confirms it matches the scientific name before we trust it.
+  // Gemini suggests the species code; eBird confirms it matches the scientific name before we trust it.
   const taxon = await getJson<Array<{ sciName: string }>>(
     `https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=json&species=${encodeURIComponent(code)}`,
     headers,

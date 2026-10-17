@@ -21,7 +21,7 @@ Discord ──► /api/interactions (Vercel)
               ▼
           waitUntil(...)
               ├─ download the photo (resized to 1568px through Discord's media proxy)
-              ├─ Claude vision call: ID + Max's voice, returned as structured JSON
+              ├─ Gemini vision call: ID + Max's voice, returned as structured JSON
               ├─ GBIF (name check + IUCN status), Wikipedia (link + thumbnail)
               ├─ birds only: eBird recent sightings, xeno-canto recording
               └─ edits the "hold on..." message into the final embed
@@ -33,7 +33,7 @@ Discord wants an answer within 3 seconds and a vision call takes longer, so Max 
 | --- | --- |
 | `api/interactions.ts` | The Vercel function Discord talks to |
 | `src/persona.ts` | Max's system prompt and canned lines |
-| `src/claude.ts` | Claude calls and the identification schema |
+| `src/model.ts` | Gemini calls and the identification schema |
 | `src/enrich.ts` | GBIF, Wikipedia, eBird, xeno-canto, and geocoding lookups |
 | `src/embed.ts` | Turns everything into a Discord embed |
 | `src/discord.ts` | Photo download and message editing |
@@ -45,7 +45,7 @@ Discord wants an answer within 3 seconds and a vision call takes longer, so Max 
 1. **Create the Discord app.** At the [Discord Developer Portal](https://discord.com/developers/applications), make a new application named Maxpie. Copy the **Application ID** and **Public Key** from General Information, and the **Bot Token** from the Bot tab.
 2. **Invite it.** OAuth2 > URL Generator, scopes `bot` and `applications.commands`, permission **Send Messages** and **Embed Links**. Open the URL and pick your server.
 3. **Get API keys.**
-   - Claude API key from [platform.claude.com](https://platform.claude.com) (required)
+   - Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) (required)
    - eBird key from [ebird.org/api/keygen](https://ebird.org/api/keygen) (optional, enables nearby sightings)
    - xeno-canto key from your xeno-canto account page (optional, enables song links)
 4. **Deploy to Vercel.** Import this repo at [vercel.com/new](https://vercel.com/new) and add the environment variables from `.env.example` (everything except `DISCORD_BOT_TOKEN` and `DISCORD_GUILD_ID`, which are only for step 6).
@@ -74,7 +74,7 @@ npm test          # unit tests (node:test)
 npm run typecheck
 ```
 
-The model defaults to `claude-opus-5-5`; override with `CLAUDE_MODEL`. Each `/identify` is one vision call plus a handful of free API lookups. There's a 30 second per-user cooldown ("bowl break"), which is best effort until it moves into Supabase.
+The model defaults to `gemini-flash-latest` (Google's newest Flash model, which the free tier covers); override with `GEMINI_MODEL`, for example a Pro model for tougher IDs. Each `/identify` is one vision call plus a handful of free API lookups. There's a 30 second per-user cooldown ("bowl break"), which is best effort until it moves into Supabase.
 
 ## Roadmap (v2)
 

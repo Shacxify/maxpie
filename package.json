@@ -13,7 +13,7 @@
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
     "@vercel/functions": "^3.10.1",
     "discord-api-types": "^0.38.56",
     "discord-interactions": "^4.4.0",

@@ -1,5 +1,5 @@
 import type { APIEmbed, APIEmbedField } from "discord-api-types/v10";
-import type { Identification } from "./claude.js";
+import type { Identification } from "./model.js";
 import type { Enrichment } from "./enrich.js";
 import { lines } from "./persona.js";
 

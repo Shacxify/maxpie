@@ -1,12 +1,12 @@
 import type { APIAttachment, APIEmbed } from "discord-api-types/v10";
-import type { ImageMediaType } from "./claude.js";
+import type { ImageMediaType } from "./model.js";
 
 const API = "https://discord.com/api/v10";
 
-// Claude's sweet spot for image size; bigger photos just cost more tokens.
+// Plenty of detail for an ID; bigger photos just cost more tokens.
 const MAX_EDGE_PX = 1568;
-// Claude API limit for a base64 image.
-const MAX_BYTES = 5 * 1024 * 1024;
+// Gemini caps inline requests at 20 MB, so leave room for the prompt.
+const MAX_BYTES = 15 * 1024 * 1024;
 
 const SUPPORTED: readonly ImageMediaType[] = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
@@ -20,7 +20,7 @@ export function supportedMediaType(contentType: string | undefined): ImageMediaT
   return SUPPORTED.find((t) => t === base);
 }
 
-// Ask Discord's media proxy for a resized copy so phone photos fit under the 5 MB limit.
+// Ask Discord's media proxy for a resized copy so phone photos upload fast and cheap.
 export function resizedUrl(attachment: APIAttachment): string {
   const { width, height, proxy_url } = attachment;
   if (!width || !height || Math.max(width, height) <= MAX_EDGE_PX) return attachment.url;

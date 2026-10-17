@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Identification } from "../src/claude.js";
+import type { Identification } from "../src/model.js";
 import { buildEmbed, truncate } from "../src/embed.js";
 
 const finch: Identification = {

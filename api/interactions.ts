@@ -16,8 +16,8 @@ import {
   type APIInteraction,
   type APIInteractionResponse,
 } from "discord-api-types/v10";
-import Anthropic from "@anthropic-ai/sdk";
-import { askMax, identifyAnimal } from "../src/claude.js";
+import { ApiError } from "@google/genai";
+import { askMax, identifyAnimal } from "../src/model.js";
 import { editOriginal, fetchPhoto } from "../src/discord.js";
 import { buildEmbed, truncate } from "../src/embed.js";
 import { enrich } from "../src/enrich.js";
@@ -81,7 +81,7 @@ async function finishIdentify(interaction: APIChatInputApplicationCommandInterac
     const extra = await enrich(id, location);
     return edit({ embeds: [buildEmbed(id, extra, photo.url)] });
   } catch (error) {
-    console.error(error instanceof Anthropic.APIError ? `Claude API ${error.status}: ${error.message}` : error);
+    console.error(error instanceof ApiError ? `Gemini API ${error.status}: ${error.message}` : error);
     return edit({ content: lines.apiError });
   }
 }
@@ -93,7 +93,7 @@ async function finishAsk(interaction: APIChatInputApplicationCommandInteraction,
       content: truncate(answer || lines.refusal, 2000),
     });
   } catch (error) {
-    console.error(error instanceof Anthropic.APIError ? `Claude API ${error.status}: ${error.message}` : error);
+    console.error(error instanceof ApiError ? `Gemini API ${error.status}: ${error.message}` : error);
     await editOriginal(interaction.application_id, interaction.token, { content: lines.apiError });
   }
 }
