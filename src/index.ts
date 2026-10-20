@@ -9,8 +9,8 @@ if (!token) {
   console.error("Set DISCORD_BOT_TOKEN first.");
   process.exit(1);
 }
-if (!process.env.OPENAI_API_KEY) {
-  console.error("Set OPENAI_API_KEY first.");
+if (!process.env.GEMINI_API_KEY) {
+  console.error("Set GEMINI_API_KEY first.");
   process.exit(1);
 }
 
