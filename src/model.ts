@@ -2,36 +2,47 @@ import { ApiError, FinishReason, GoogleGenAI, type GenerateContentParameters, ty
 import { z } from "zod";
 import { identifyInstructions, systemPrompt } from "./persona.js";
 
-// gemini-flash-latest tracks Google's newest Flash model, which is fast and covered by the free tier.
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-// Three tries at this plus the retry waits stays under the 90s deadline in src/bot.ts.
-const GEMINI_TIMEOUT_MS = 25_000;
-// Gemini sometimes answers 503 "high demand" or 429; those usually clear in a few seconds.
-const RETRY_DELAYS_MS = [2_000, 5_000];
+// Tried in order. Free-tier limits are per model, so when one is overloaded, out of quota,
+// slow, or retired, the next one usually still answers. Strongest first; Flash-Lite is the
+// fast last resort. Override with GEMINI_MODELS (comma-separated).
+const MODELS = (process.env.GEMINI_MODELS || "gemini-flash-latest,gemini-3.6-flash,gemini-3.5-flash,gemini-flash-lite-latest")
+  .split(",")
+  .map((m) => m.trim())
+  .filter(Boolean);
+// A busy model can take 20-30s. Four models at this stays under the 150s deadline in src/bot.ts.
+const GEMINI_TIMEOUT_MS = 30_000;
 
 let client: GoogleGenAI | undefined;
 const ai = (): GoogleGenAI => (client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }));
 
-const retryable = (error: unknown): boolean =>
-  error instanceof ApiError && (error.status === 429 || error.status >= 500);
+const timedOut = (error: unknown): boolean =>
+  error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 
-async function generate(params: GenerateContentParameters): Promise<GenerateContentResponse> {
-  const attempt = () =>
-    ai().models.generateContent({
-      ...params,
-      config: { ...params.config, abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) },
-    });
+// Worth moving on to the next model: slow (timeout), out of quota (429), retired (404), or overloaded (5xx).
+// Anything else, like a bad key (401), would fail on every model, so it stops right away.
+const tryNextModel = (error: unknown): boolean =>
+  timedOut(error) || (error instanceof ApiError && (error.status === 404 || error.status === 429 || error.status >= 500));
 
-  for (const delay of RETRY_DELAYS_MS) {
+// Walks the model list once and stops at the first answer. It never loops forever:
+// that would burn the free quota and leave people staring at "typing...".
+async function generate(params: Omit<GenerateContentParameters, "model">): Promise<GenerateContentResponse> {
+  let lastError: unknown;
+  for (const model of MODELS) {
     try {
-      return await attempt();
+      const response = await ai().models.generateContent({
+        ...params,
+        model,
+        config: { ...params.config, abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) },
+      });
+      if (model !== MODELS[0]) console.log(`answered by fallback ${model}`);
+      return response;
     } catch (error) {
-      if (!retryable(error)) throw error;
-      console.warn(`Gemini ${(error as ApiError).status}, retrying in ${delay / 1000}s`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (!tryNextModel(error)) throw error;
+      console.warn(`${model} ${timedOut(error) ? "timed out" : (error as ApiError).status}, trying the next model`);
+      lastError = error;
     }
   }
-  return attempt();
+  throw lastError;
 }
 
 export const IdentificationSchema = z.object({
@@ -39,9 +50,7 @@ export const IdentificationSchema = z.object({
   is_animal: z.boolean(),
   common_name: z.string(),
   scientific_name: z.string(),
-  excitement: z.enum(["common", "notable", "rare"]),
-  max_take: z.string(),
-  facts: z.array(z.string()).min(1).max(3),
+  reply: z.string(),
 });
 
 export type Identification = z.infer<typeof IdentificationSchema>;
@@ -78,7 +87,6 @@ export async function identifyAnimal(
     : "They didn't say anything else.";
 
   const response = await generate({
-    model: MODEL,
     contents: [
       {
         role: "user",
@@ -111,10 +119,9 @@ export async function identifyAnimal(
 // Mentions without a photo ("@maxpie how do i get birds to come to my yard?").
 export async function askMax(question: string): Promise<string | null> {
   const response = await generate({
-    model: MODEL,
     contents: question,
     config: {
-      systemInstruction: `${systemPrompt()}\n\nSomeone just @mentioned you in a Discord chat. Reply like a person in the chat: short, a few sentences at most, plain text, no headers or lists unless they really help.`,
+      systemInstruction: `${systemPrompt()}\n\nSomeone just @mentioned you in a Discord chat. Reply like a person in the chat: casual, a few sentences at most, plain text. No lists, bullet points, headers, or links.`,
     },
   });
 

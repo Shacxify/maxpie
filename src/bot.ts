@@ -3,12 +3,10 @@ import type { Attachment, Message } from "discord.js";
 import { askMax, identifyAnimal } from "./model.js";
 import { lines } from "./persona.js";
 import { fetchPhoto, supportedMediaType } from "./photo.js";
-import { formatId, truncate } from "./reply.js";
-import { wikipediaUrl } from "./wiki.js";
 
 const COOLDOWN_SECONDS = 30;
-// Max always answers within this, even if Gemini or Wikipedia hangs.
-const DEADLINE_MS = 90_000;
+// Max always answers within this, even if Gemini hangs. The typing indicator stays up the whole time.
+const DEADLINE_MS = 150_000;
 // Discord's typing indicator lasts about 10 seconds, so keep poking it.
 const TYPING_REFRESH_MS = 8_000;
 
@@ -21,6 +19,11 @@ function onCooldown(userId: string): number {
   if (remaining > 0) return remaining;
   lastUse.set(userId, now);
   return 0;
+}
+
+// Discord's message limit is 2000 characters.
+export function truncate(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 3).trimEnd()}...`;
 }
 
 // "what the heck is this? <@123>" -> "what the heck is this?"
@@ -78,7 +81,7 @@ async function answer(message: Message, text: string): Promise<string> {
   const id = result.id;
   if (!id.is_animal) return lines.notAnimal;
   if (!id.photo_usable) return lines.blurry;
-  return formatId(id, await wikipediaUrl(id));
+  return id.reply.trim() || lines.apiError;
 }
 
 function withDeadline(work: Promise<string>): Promise<string> {
