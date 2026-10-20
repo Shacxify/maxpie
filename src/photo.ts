@@ -2,7 +2,7 @@ import type { ImageMediaType } from "./model.js";
 
 // Plenty of detail for an ID; bigger photos just cost more tokens.
 const MAX_EDGE_PX = 1568;
-// Gemini caps inline requests at 20 MB, so leave room for the prompt.
+// OpenAI accepts images up to 20 MB; resized photos are far smaller anyway.
 const MAX_BYTES = 15 * 1024 * 1024;
 
 const SUPPORTED: readonly ImageMediaType[] = ["image/jpeg", "image/png", "image/gif", "image/webp"];

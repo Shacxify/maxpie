@@ -1,4 +1,4 @@
-import { ApiError } from "@google/genai";
+import OpenAI from "openai";
 import type { Attachment, Message } from "discord.js";
 import { askMax, identifyAnimal } from "./model.js";
 import { lines } from "./persona.js";
@@ -7,7 +7,7 @@ import { formatId, truncate } from "./reply.js";
 import { wikipediaUrl } from "./wiki.js";
 
 const COOLDOWN_SECONDS = 30;
-// Max always answers within this, even if Gemini or Wikipedia hangs.
+// Max always answers within this, even if OpenAI or Wikipedia hangs.
 const DEADLINE_MS = 90_000;
 // Discord's typing indicator lasts about 10 seconds, so keep poking it.
 const TYPING_REFRESH_MS = 8_000;
@@ -68,7 +68,7 @@ async function answer(message: Message, text: string): Promise<string> {
   if (image.kind === "too_big") return lines.tooBig;
 
   const result = await identifyAnimal(image, text || undefined);
-  log(`gemini: ${result.kind}`);
+  log(`openai: ${result.kind}`);
   if (result.kind === "refused") return lines.refusal;
   if (result.kind === "failed") {
     console.error(`identify failed: ${result.reason}`);
@@ -115,7 +115,7 @@ export async function handleMessage(message: Message, botUserId: string): Promis
 
   try {
     const work = answer(message, cleanText(message.content)).catch((error: unknown) => {
-      console.error(error instanceof ApiError ? `Gemini API ${error.status}: ${error.message}` : error);
+      console.error(error instanceof OpenAI.APIError ? `OpenAI API ${error.status}: ${error.message}` : error);
       return lines.apiError;
     });
     await send(await withDeadline(work));

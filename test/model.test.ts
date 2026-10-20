@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
+import { test } from "node:test";
 
-process.env.GEMINI_API_KEY = "test-key";
-const { identifyAnimal } = await import("../src/model.js");
+process.env.OPENAI_API_KEY = "test-key";
 
-const realFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = realFetch;
-});
+// Stand in for the OpenAI API. The SDK grabs fetch once, so route every call through one swappable handler.
+let reply: object = {};
+const sent: Array<{ url: string; body: any }> = [];
+globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  sent.push({ url: String(input instanceof Request ? input.url : input), body: JSON.parse(String(init?.body)) });
+  return new Response(JSON.stringify(reply), { status: 200, headers: { "Content-Type": "application/json" } });
+}) as typeof fetch;
+
+const { askMax, identifyAnimal } = await import("../src/model.js");
 
 const finch = {
   photo_usable: true,
@@ -19,51 +23,50 @@ const finch = {
   facts: ["the red comes from what he eats.", "hollywood finches."],
 };
 
-// Stand in for the Gemini REST API and remember what was sent.
-function fakeGemini(reply: object) {
-  const sent: Array<{ url: string; body: any }> = [];
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    sent.push({ url: String(input instanceof Request ? input.url : input), body: JSON.parse(String(init?.body)) });
-    return new Response(JSON.stringify(reply), { status: 200, headers: { "Content-Type": "application/json" } });
-  }) as typeof fetch;
-  return sent;
-}
+const response = (content: object[], extra: object = {}) => ({
+  id: "resp_1",
+  object: "response",
+  status: "completed",
+  model: "gpt-5.4-mini",
+  output: [{ type: "message", id: "msg_1", role: "assistant", status: "completed", content }],
+  ...extra,
+});
 
 const image = { data: "aGVsbG8=", mediaType: "image/jpeg" as const };
 
 test("sends the photo, persona, and JSON schema, then parses the ID", async () => {
-  const sent = fakeGemini({
-    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(finch) }] }, finishReason: "STOP" }],
-  });
+  sent.length = 0;
+  reply = response([{ type: "output_text", text: JSON.stringify(finch), annotations: [] }]);
 
   const result = await identifyAnimal(image, "what the heck is this? saw it at Alviso Marsh");
   assert.deepEqual(result, { kind: "ok", id: finch });
 
   assert.equal(sent.length, 1);
-  assert.match(sent[0].url, /models\/gemini-flash-latest:generateContent/);
+  assert.match(sent[0].url, /\/v1\/responses$/);
   const body = sent[0].body;
-  assert.equal(body.contents[0].parts[0].inlineData.mimeType, "image/jpeg");
-  assert.match(body.contents[0].parts[1].text, /Alviso Marsh/);
-  assert.match(body.systemInstruction.parts[0].text, /Max Liske/);
-  assert.equal(body.generationConfig.responseMimeType, "application/json");
-  assert.equal(body.generationConfig.responseJsonSchema.$schema, undefined);
-  assert.ok(body.generationConfig.responseJsonSchema.required.includes("max_take"));
+  assert.equal(body.model, "gpt-5.4-mini");
+  assert.match(body.instructions, /Max Liske/);
+  assert.equal(body.input[0].content[0].type, "input_image");
+  assert.match(body.input[0].content[0].image_url, /^data:image\/jpeg;base64,aGVsbG8=$/);
+  assert.match(body.input[0].content[1].text, /Alviso Marsh/);
+  assert.equal(body.text.format.type, "json_schema");
+  assert.ok(body.text.format.schema.required.includes("max_take"));
 });
 
-test("a safety block becomes a refusal", async () => {
-  fakeGemini({ candidates: [{ finishReason: "SAFETY" }] });
+test("a refusal comes back as refused", async () => {
+  reply = response([{ type: "refusal", refusal: "can't help with that" }]);
   assert.deepEqual(await identifyAnimal(image, undefined), { kind: "refused" });
 });
 
-test("a blocked prompt becomes a refusal", async () => {
-  fakeGemini({ promptFeedback: { blockReason: "SAFETY" } });
-  assert.deepEqual(await identifyAnimal(image, undefined), { kind: "refused" });
-});
-
-test("JSON that doesn't match the schema fails cleanly", async () => {
-  fakeGemini({
-    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ ...finch, excitement: "vibes" }) }] }, finishReason: "STOP" }],
-  });
+test("a cut-off answer fails cleanly", async () => {
+  reply = response([], { status: "incomplete", incomplete_details: { reason: "max_output_tokens" } });
   const result = await identifyAnimal(image, undefined);
   assert.equal(result.kind, "failed");
+});
+
+test("questions without a photo get Max's plain-text answer", async () => {
+  sent.length = 0;
+  reply = response([{ type: "output_text", text: "  just sit still and be boring.  ", annotations: [] }]);
+  assert.equal(await askMax("how do i attract birds?"), "just sit still and be boring.");
+  assert.equal(sent[0].body.input, "how do i attract birds?");
 });
