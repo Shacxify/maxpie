@@ -1,38 +1,14 @@
-import { ApiError, FinishReason, GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
+import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { identifyInstructions, systemPrompt } from "./persona.js";
 
-// gemini-flash-latest tracks Google's newest Flash model, which is fast and covered by the free tier.
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
-// Three tries at this plus the retry waits stays under the 90s deadline in src/bot.ts.
-const GEMINI_TIMEOUT_MS = 25_000;
-// Gemini sometimes answers 503 "high demand" or 429; those usually clear in a few seconds.
-const RETRY_DELAYS_MS = [2_000, 5_000];
+// A small, cheap model that can see images. Set OPENAI_MODEL (e.g. gpt-5.5) for sharper IDs.
+const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-mini";
 
-let client: GoogleGenAI | undefined;
-const ai = (): GoogleGenAI => (client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }));
-
-const retryable = (error: unknown): boolean =>
-  error instanceof ApiError && (error.status === 429 || error.status >= 500);
-
-async function generate(params: GenerateContentParameters): Promise<GenerateContentResponse> {
-  const attempt = () =>
-    ai().models.generateContent({
-      ...params,
-      config: { ...params.config, abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) },
-    });
-
-  for (const delay of RETRY_DELAYS_MS) {
-    try {
-      return await attempt();
-    } catch (error) {
-      if (!retryable(error)) throw error;
-      console.warn(`Gemini ${(error as ApiError).status}, retrying in ${delay / 1000}s`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-  return attempt();
-}
+let client: OpenAI | undefined;
+// The SDK retries 429s and 5xx overloads on its own. Three tries at 25s stays under the 90s deadline in src/bot.ts.
+const ai = (): OpenAI => (client ??= new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 2, timeout: 25_000 }));
 
 export const IdentificationSchema = z.object({
   photo_usable: z.boolean(),
@@ -41,13 +17,10 @@ export const IdentificationSchema = z.object({
   scientific_name: z.string(),
   excitement: z.enum(["common", "notable", "rare"]),
   max_take: z.string(),
-  facts: z.array(z.string()).min(1).max(3),
+  facts: z.array(z.string()),
 });
 
 export type Identification = z.infer<typeof IdentificationSchema>;
-
-// Gemini takes plain JSON Schema but not the "$schema" header zod adds.
-const { $schema: _, ...identificationJsonSchema } = z.toJSONSchema(IdentificationSchema);
 
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
@@ -56,16 +29,11 @@ export type IdentifyResult =
   | { kind: "refused" }
   | { kind: "failed"; reason: string };
 
-const BLOCKED: ReadonlySet<FinishReason | undefined> = new Set([
-  FinishReason.SAFETY,
-  FinishReason.PROHIBITED_CONTENT,
-  FinishReason.BLOCKLIST,
-  FinishReason.SPII,
-  FinishReason.IMAGE_SAFETY,
-]);
-
-function wasBlocked(response: GenerateContentResponse): boolean {
-  return Boolean(response.promptFeedback?.blockReason) || BLOCKED.has(response.candidates?.[0]?.finishReason);
+// The model can decline with a refusal instead of answering.
+function refused(response: OpenAI.Responses.Response): boolean {
+  return response.output.some(
+    (item) => item.type === "message" && item.content.some((part) => part.type === "refusal"),
+  );
 }
 
 export async function identifyAnimal(
@@ -77,47 +45,37 @@ export async function identifyAnimal(
     ? `The person who posted this wrote: "${message}". Use any place or detail they mention as context.`
     : "They didn't say anything else.";
 
-  const response = await generate({
+  const response = await ai().responses.parse({
     model: MODEL,
-    contents: [
+    instructions: systemPrompt(),
+    input: [
       {
         role: "user",
-        parts: [
-          { inlineData: { mimeType: image.mediaType, data: image.data } },
-          { text: `${identifyInstructions}\n\n${note}` },
+        content: [
+          { type: "input_image", image_url: `data:${image.mediaType};base64,${image.data}`, detail: "auto" },
+          { type: "input_text", text: `${identifyInstructions}\n\n${note}` },
         ],
       },
     ],
-    config: {
-      systemInstruction: systemPrompt(),
-      responseMimeType: "application/json",
-      responseJsonSchema: identificationJsonSchema,
-    },
+    text: { format: zodTextFormat(IdentificationSchema, "identification") },
   });
 
-  if (wasBlocked(response)) return { kind: "refused" };
-  if (response.candidates?.[0]?.finishReason === FinishReason.MAX_TOKENS) {
-    return { kind: "failed", reason: "hit max output tokens" };
+  if (refused(response)) return { kind: "refused" };
+  if (response.status === "incomplete") {
+    return { kind: "failed", reason: `incomplete: ${response.incomplete_details?.reason ?? "unknown"}` };
   }
-
-  try {
-    const parsed = IdentificationSchema.safeParse(JSON.parse(response.text ?? ""));
-    return parsed.success ? { kind: "ok", id: parsed.data } : { kind: "failed", reason: parsed.error.message };
-  } catch {
-    return { kind: "failed", reason: "response was not JSON" };
-  }
+  if (!response.output_parsed) return { kind: "failed", reason: "no parsed output" };
+  return { kind: "ok", id: response.output_parsed };
 }
 
 // Mentions without a photo ("@maxpie how do i get birds to come to my yard?").
 export async function askMax(question: string): Promise<string | null> {
-  const response = await generate({
+  const response = await ai().responses.create({
     model: MODEL,
-    contents: question,
-    config: {
-      systemInstruction: `${systemPrompt()}\n\nSomeone just @mentioned you in a Discord chat. Reply like a person in the chat: short, a few sentences at most, plain text, no headers or lists unless they really help.`,
-    },
+    instructions: `${systemPrompt()}\n\nSomeone just @mentioned you in a Discord chat. Reply like a person in the chat: short, a few sentences at most, plain text, no headers or lists unless they really help.`,
+    input: question,
   });
 
-  if (wasBlocked(response)) return null;
-  return response.text?.trim() ?? null;
+  if (refused(response)) return null;
+  return response.output_text.trim() || null;
 }
