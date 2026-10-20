@@ -21,7 +21,7 @@ The source of truth for Max's voice is `src/persona.ts`. This page is the human-
 
 | Habit | Bot behavior | Where |
 | --- | --- | --- |
-| Leaves calls silently | Replies never sign off. About 1 in 7 times he tacks on "*max left.*" | `src/reply.ts` |
+| Leaves calls silently | Replies never sign off. He just stops talking. | system prompt |
 | "bowl break!" | Cooldown message: "bowl break. back in 30s." | `src/persona.ts` |
 | Low energy | Shows "Maxpie is typing..." for a bit, then answers like anyone else in chat | `src/bot.ts` |
 | Wakes up for good birds | Rare species get ALL CAPS and real excitement | system prompt |

@@ -14,9 +14,7 @@ const finch = {
   is_animal: true,
   common_name: "House Finch",
   scientific_name: "Haemorhous mexicanus",
-  excitement: "common",
-  max_take: "mm. house finch.",
-  facts: ["the red comes from what he eats.", "hollywood finches."],
+  reply: "mm. house finch. the red's from what he eats, so this guy's eating good.",
 };
 
 // Stand in for the Gemini REST API and remember what was sent.
@@ -47,7 +45,7 @@ test("sends the photo, persona, and JSON schema, then parses the ID", async () =
   assert.match(body.systemInstruction.parts[0].text, /Max Liske/);
   assert.equal(body.generationConfig.responseMimeType, "application/json");
   assert.equal(body.generationConfig.responseJsonSchema.$schema, undefined);
-  assert.ok(body.generationConfig.responseJsonSchema.required.includes("max_take"));
+  assert.ok(body.generationConfig.responseJsonSchema.required.includes("reply"));
 });
 
 test("a safety block becomes a refusal", async () => {
@@ -62,8 +60,42 @@ test("a blocked prompt becomes a refusal", async () => {
 
 test("JSON that doesn't match the schema fails cleanly", async () => {
   fakeGemini({
-    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ ...finch, excitement: "vibes" }) }] }, finishReason: "STOP" }],
+    candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify({ ...finch, reply: 42 }) }] }, finishReason: "STOP" }],
   });
   const result = await identifyAnimal(image, undefined);
   assert.equal(result.kind, "failed");
+});
+
+test("a slow, busy, or out-of-quota model hands off to the next one", async () => {
+  const urls: string[] = [];
+  const failures = [
+    () => Promise.reject(new DOMException("This operation was aborted", "AbortError")),
+    () => Promise.resolve(new Response(JSON.stringify({ error: { code: 429, message: "quota", status: "RESOURCE_EXHAUSTED" } }), { status: 429 })),
+  ];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    urls.push(String(input instanceof Request ? input.url : input));
+    const fail = failures[urls.length - 1];
+    if (fail) return fail();
+    return new Response(
+      JSON.stringify({ candidates: [{ content: { role: "model", parts: [{ text: JSON.stringify(finch) }] }, finishReason: "STOP" }] }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  assert.deepEqual(await identifyAnimal(image, undefined), { kind: "ok", id: finch });
+  assert.deepEqual(
+    urls.map((u) => u.match(/models\/([^:]+):/)?.[1]),
+    ["gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"],
+  );
+});
+
+test("a bad key stops right away instead of trying every model", async () => {
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls++;
+    return new Response(JSON.stringify({ error: { code: 401, message: "bad key", status: "UNAUTHENTICATED" } }), { status: 401 });
+  }) as typeof fetch;
+
+  await assert.rejects(identifyAnimal(image, undefined));
+  assert.equal(calls, 1);
 });

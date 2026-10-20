@@ -13,18 +13,13 @@ No commands. Just talk to him.
 - **Ask him something**, no photo needed: `@Maxpie should i play bird calls to attract birds?`
 - **DM him** and he answers without the @
 
-He shows "Maxpie is typing...", then replies like anyone else in chat:
+He shows "Maxpie is typing...", then answers like anyone else in chat, no lists or links:
 
-> male house finch, classic yard trash bird but i still love 'em... i'd bet my binoculars on it.
->
-> \- The redness of a male's plumage comes entirely from carotenoid pigments in their seed diet.
-> \- Eastern populations exploded after pet vendors released "Hollywood Finches" on Long Island in 1940.
->
-> https://en.wikipedia.org/wiki/House_finch
+> BURROWING OWL. Athene cunicularia. OH MAN. absolute favorite. these little guys are declining fast across western north america due to habitat loss... look at those long legs made for running around open country and sitting on fence posts.
 
 ## How it works
 
-Max is a small Node.js program that stays connected to Discord. When someone mentions him, he grabs the photo (from their message or the one they replied to), asks Gemini to identify it in his voice, finds the Wikipedia article, and replies.
+Max is a small Node.js program that stays connected to Discord. When someone mentions him, he grabs the photo (from their message or the one they replied to), asks Gemini to identify it and answer in his voice, and replies.
 
 | File | Job |
 | --- | --- |
@@ -33,8 +28,6 @@ Max is a small Node.js program that stays connected to Discord. When someone men
 | `src/model.ts` | Gemini calls and the identification schema |
 | `src/persona.ts` | Max's personality and canned lines |
 | `src/photo.ts` | Downloads and resizes photos |
-| `src/wiki.ts` | Finds the Wikipedia link |
-| `src/reply.ts` | Formats the reply |
 
 Because he has to stay connected, Max needs somewhere that runs all the time (not Vercel, which only runs code when a web request comes in).
 
@@ -72,6 +65,6 @@ npm test          # unit tests (node:test)
 npm run typecheck
 ```
 
-The model defaults to `gemini-flash-latest` (Google's newest Flash model, which the free tier covers); override with `GEMINI_MODEL`. If Gemini is overloaded, Max retries twice before giving up. Each person gets a 30 second cooldown between questions ("bowl break").
+Max tries Gemini models in order (`gemini-flash-latest`, then `gemini-3.6-flash`, `gemini-3.5-flash`, `gemini-flash-lite-latest`). Free-tier limits are per model, so when one is overloaded, out of quota, or slow, the next one usually answers. He walks the list once and never retries forever, which would burn the free quota. Override the list with `GEMINI_MODELS` (comma-separated). Each person gets a 30 second cooldown between questions ("bowl break").
 
 Max's full personality sheet lives in [docs/PERSONA.md](docs/PERSONA.md).
