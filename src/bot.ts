@@ -95,11 +95,23 @@ function withDeadline(work: Promise<string>): Promise<string> {
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
+// In DMs Max answers everything. In servers he answers when someone:
+// - @mentions him,
+// - @mentions his "Maxpie" role (Discord gives every bot one, and autocomplete often suggests it first), or
+// - replies to one of his messages, even with the ping turned off.
+export function isForMax(message: Message, botUserId: string): boolean {
+  if (!message.inGuild()) return true;
+  const { mentions } = message;
+  return (
+    mentions.users.has(botUserId) ||
+    mentions.roles.some((role) => role.tags?.botId === botUserId) ||
+    mentions.repliedUser?.id === botUserId
+  );
+}
+
 export async function handleMessage(message: Message, botUserId: string): Promise<void> {
   if (message.author.bot) return;
-  // In servers Max only answers when he's @mentioned (or someone replies to him). In DMs he answers everything.
-  const addressed = !message.inGuild() || message.mentions.users.has(botUserId);
-  if (!addressed) return;
+  if (!isForMax(message, botUserId)) return;
 
   // Replies read like a normal chat message, and never ping anyone.
   const send = (content: string) =>

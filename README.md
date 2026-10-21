@@ -11,7 +11,10 @@ No commands. Just talk to him.
 - **Post a photo and @mention him:** `what the heck is this? @Maxpie`
 - **Reply to someone else's photo** with `@Maxpie ??`
 - **Ask him something**, no photo needed: `@Maxpie should i play bird calls to attract birds?`
+- **Reply to one of his messages** to keep talking, no @ needed
 - **DM him** and he answers without the @
+
+The `@Maxpie` role Discord created when he joined works too, so it doesn't matter which one autocomplete picks.
 
 He shows "Maxpie is typing...", then answers like anyone else in chat, no lists or links:
 
